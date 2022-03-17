@@ -24,3 +24,4 @@ We designed several sub-tasks you can follow. The main challenge (the 4th sub-ta
 1. [A blog about qubit gate in Qiskit](https://blog.csdn.net/qq_36793268/article/details/110352448)
 2. [An algorithm of kronecker decomposition](https://www.imageclef.org/system/files/CLEF2016_Kronecker_Decomposition.pdf)
 3. Quantum Computation and Quantum Information, Michael A. Nielsen and Issac L. Chuang. 
+4. [A website about different qubit gates](https://www.quantum-inspire.com/kbase/rz-gate/)
