@@ -20,7 +20,7 @@ We designed several sub-tasks you can follow. The main challenge (the 4th sub-ta
 **4.** (Hard) Read [1], following the theorem 1 in [1] (you may also need to read [2] which is referred in [1]), write a program to decompose arbitrary two-qubit gate with three CNOT gates and some single-qubit gates
 
 ## Usage
-Turn to [example](./examples.ipynb) for usage. If jupyter notebook shows a bad alignment, run [test](test.py) to see the output.
+Turn to [example](./usecase.ipynb) for usage. If jupyter notebook shows a bad alignment, run [test](test.py) to see the output.
 
 ## Reference
 
