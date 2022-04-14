@@ -25,3 +25,4 @@ We designed several sub-tasks you can follow. The main challenge (the 4th sub-ta
 2. [An algorithm of kronecker decomposition](https://www.imageclef.org/system/files/CLEF2016_Kronecker_Decomposition.pdf)
 3. Quantum Computation and Quantum Information, Michael A. Nielsen and Issac L. Chuang. 
 4. [A website about different qubit gates](https://www.quantum-inspire.com/kbase/rz-gate/)
+5. A universal quantum circuit for two-qubit transformations with three CNOT gates, G. Vidal1 and C. M. Dawson.

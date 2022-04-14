@@ -1,4 +1,3 @@
-from torch import linalg
 from utils import *
 
 import numpy as np
@@ -60,7 +59,25 @@ def is_control_U(x):
         return 2
     else:
         return None
-    
+
+
+def get_phase(U):
+    """
+    Compute the alpha of a q-gate
+    """
+    n = U.shape[0]
+    alpha = np.angle(det(U) ** (1 / n))
+    return alpha
+
+
+def remove_glob_phase(U):
+    """
+    Remove the global phase of a d*d unitary matrix
+    :math:`U = e^{i\alpha} R_z(\phi) R_y(\theta) R_z(\lambda)`
+    That is, remove :math:`e^{i\alpha}`
+    """
+    alpha = get_phase(U)
+    return U * np.exp(- 1j * alpha)
 
 class Gate():
     def __init__(self, value: np.ndarray, name: str=None, tbit=0, cbit=None, params=None):
@@ -162,7 +179,7 @@ class Gate():
         # CU gates just include controlling over 1st qubit?
         return is_control_U(self.value)
 
-    def decompose(self, option: str):
+    def decompose(self, option: str="default"):
         gb = GateBuilder()
         if option == 'two_single':
             matrixs = product_decomp_SVD(self.value)
@@ -176,118 +193,15 @@ class Gate():
         elif option == 'control_u' and self.is_control_U():
             gates = cu_decomp(self.value)
         else:
-            error_out("Unsupported decomposition type")
-            return 
+            gates = general_decomp(self.value)
+            # error_out("Unsupported decomposition type")
         self.decomps += gates
 
 
-
-
-# Functions for decomposition
-
-def get_u3_params(u):
-    if u.shape != (2,2):
-        raise ValueError("please provide a 1-qubit gate")
-    k = 1 / sqrt(det(u))
-    v = (u * k).round(10)
-    b_d_sum = 2 * np.angle(v[1, 1])
-    b_d_diff = 2 * np.angle(v[1, 0])
-    a = - np.angle(k)
-    b = (b_d_sum + b_d_diff) / 2
-    c = 2 * atan2(abs(v[1,0]), abs(v[0,0]))
-    d = (b_d_sum - b_d_diff) / 2
-
-    return a, b, c, d
-
-
-def product_decomp_SVD(X: np.ndarray, m1=2, n1=2):
-    '''
-    An approximation algorithm using SVD, the accuracy is bad
-    See the algorithm here (p14-19): https://www.imageclef.org/system/files/CLEF2016_Kronecker_Decomposition.pdf
-    '''
-    m, n = X.shape
-    m2, n2 = m // m1, n // n1
-    X_split = [X[i*m2:(i+1)*m2, j*n2:(j+1)*n2] for i in range(m1) for j in range(n1)]
-    X_flatten = [m.ravel() for m in X_split]
-    X_reordered = np.vstack(X_flatten).T
-   
-    U, S, Vt = np.linalg.svd(X_reordered)
-   
-    A_re = sqrt(np.max(S)) * U[:,0]
-    B_re = sqrt(np.max(S)) * Vt.T[:,0]
-    
-    A = B_re.reshape(m1, n1).round(10)
-    B = A_re.reshape(m2, n2).round(10)
-    return A, B
-
-
-def count_coeff(U, V):
-    """
-    Claculate the coefficient a, s.t. U = a V
-    """
-    assert U.shape == V.shape, "input matrices should have the same dimension"
-    idx1 = np.flatnonzero(U.round(6))  # cut to some precision
-    idx2 = np.flatnonzero(V.round(6))
-    try:
-        if np.allclose(idx1, idx2):
-            return U.ravel()[idx1[0]] / V.ravel()[idx2[0]]
-    except:
-        return None
-
-
-def product_decomp_noSVD(X, m1=2, n1=2):
-    """
-    A manual approximation algorithm without SVD, the accuracy is worse
-    """
-    m, n = X.shape
-    m2, n2 = m // m1, n // n1
-    X_split = [X[i*m2:(i+1)*m2, j*n2:(j+1)*n2] for i in range(m1) for j in range(n1)]
-    X_flatten = [m.ravel() for m in X_split]
-    X_reordered = np.vstack(X_flatten)
-
-    l = [not np.allclose(np.zeros(m), X_reordered[i]) for i in range(4)]
-
-    B_re = X_reordered[l.index(True)]
-
-    A_re = np.array([count_coeff(X_reordered[i], B_re) 
-                        if l[i] else 0 for i in range(m)])
-    
-    A = A_re.reshape(m1, n1)
-    B = B_re.reshape(m2, n2)
-    return A, B
-    
-
-def kron_decomp_check(A, B, X):
-    X_recomp = np.kron(A, B)
-    return np.allclose(X, X_recomp)
-
-def cu_decomp(U, cbit=0):
-    '''
-    decompose the Control-U gate with 2 CNOT gates and some 1-qubit gates
-    #FIXME(chuqing): what does CNOT look like when cbit=1?
-    '''
-    if cbit == 1:
-        raise ValueError("unsupported contorl_U gate now")
-    gb = GateBuilder()
-    tbit = 1 - cbit
-    a, b, c, d = get_u3_params(U[2:, 2:])
-    A = gb.Rz((d - b) / 2).value
-    B = gb.Ry(- c / 2).value @ gb.Rz(- (d + b)/2).value
-    C = gb.Rz(b).value @ gb.Ry(c / 2).value
-    u_b = get_u3_params(B)
-    u_c = get_u3_params(C)
-    gates = [ gb.Rz((d - b) / 2, tbit),
-              gb.CNOT,
-              gb.U3(*u_b[1:], tbit),
-              gb.CNOT,
-              gb.U3(*u_c[1:], tbit),
-              gb.Rz(a, cbit) # rm phase= exp(- aj / 2) here
-            ]
-    return gates
-
-
-
 class GateBuilder():
+    '''
+    A builder for some basic gate
+    '''
     def __init__(self):
         self.X = Gate(np.array([[0, 1],
                                 [1, 0]]), 'X')
@@ -324,23 +238,4 @@ class GateBuilder():
                                   'phi': phi,
                                   'lambda': lamb})
             
-
-    def arr_to_u3(self, U, tbit):
-        # get params
-        if det(U) == 0:    # cannot be decomposed
-            return None
-        k = det(U) ** (-0.5)
-        U_norm = k * U
-        U = U_norm.round(10)
-        theta = 2 * atan2(abs(U[1,0]), abs(U[0,0]))
-        p_l_sum = 2 * np.angle(U[1, 1])
-        p_l_diff = 2 * np.angle(U[1, 0])
-        phi = (p_l_sum + p_l_diff) / 2
-        lamb = (p_l_sum - p_l_diff) / 2
-
-        # build gate
-        return self.U3(theta, phi, lamb, tbit=tbit)
     
-
-
-
